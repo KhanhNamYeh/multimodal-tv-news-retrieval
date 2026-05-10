@@ -1,0 +1,85 @@
+# =============================================================================
+# Project: D:/aic — repository contents are scoped to the DEMO + supporting
+# code. Training data, raw media, and training notebooks are excluded.
+# =============================================================================
+
+# --- Secrets ---
+.env
+.env.local
+*.env
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ipynb_checkpoints/
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# Heavy raw / intermediate data — NEVER upload
+# =============================================================================
+video/
+frame_extracted/
+time_extract/
+transcripts/
+concat/
+results/
+narvid/
+narvid_vn_output_nb/
+benchmark/
+dataset/
+
+# Precomputed features (per .gitignore preference)
+data/features/
+
+# Test recordings / scratch
+*.webm
+/false/
+/true/
+
+# =============================================================================
+# Training process — excluded (only demo is shared)
+# =============================================================================
+
+# Training notebooks — keep ONLY a future demo notebook (none committed yet)
+source/notebooks/ablation_study.ipynb
+source/notebooks/ablation_study_1.ipynb
+source/notebooks/baseline.ipynb
+source/notebooks/benchmark.ipynb
+source/notebooks/continue_train_videorope.ipynb
+source/notebooks/narvid_benchmark.ipynb
+source/notebooks/test.ipynb
+source/notebooks/train_eval_main.ipynb
+source/notebooks/train_narvid_vn.ipynb
+
+# Per-run outputs from older experiments
+source/baseline_output/
+source/fusion_output/
+source/fusion_output_full/
+source/fusion_output_no_filter/
+source/fusion_output_no_filter_no_gate_ca/
+source/fusion_output_no_filter_no_pool/
+source/narvid_corpus_cache.pt
+source/benchmark_main_test_results.json
+source/custom_model_results.json
+source/narvid_baseline_results.json
+
+# Old root-level checkpoint (not the demo's)
+/best_model.pth
+
+# =============================================================================
+# Ablation outputs — keep ONLY Variant 3 best checkpoint for the demo
+# =============================================================================
+source/ablation_output/*
+!source/ablation_output/.gitkeep
+!source/ablation_output/ablation1_nofilter_videorope_lg_L2.pth
+
+# No checkpoints in repo
+*.pth
+*.pt
