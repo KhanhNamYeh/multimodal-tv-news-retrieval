@@ -52,42 +52,7 @@ SYSTEM_PROMPT = (
 )
 
 API_KEYS = [
-    # # angoc1
-    # "AIzaSyD2P8zQESf6fIm33VccqGzMqHmkRbsny_g",
-    # "AIzaSyDjTDWmM-mJsTiewc5_55zg-oh6zos5WDU",
-    # "AIzaSyCeJj53gsgqF6J0fj219rmR5YoP4pzTRts",
-    # "AIzaSyC0WupVzrWdp0V5XASite1BIpt3H0noBig",
-    # "AIzaSyBa78cT8fFoe23_dtoWWnA1989RLu7l3Hg",
-    # # angoc2
-    # "AIzaSyDQkSZ5scPQVYocgiV5vHujo5KgW4ZVyVM",
-    # "AIzaSyDTyB7vEv7CHn1NQZKU38nTDBhhoHjjjLA",
-    # "AIzaSyBcntaozpkN_HlazZsZ6uVSUZ1IjQOce0E",
-    # "AIzaSyApI5pmnsqxQM4dCHqqzlh4wFEFxeOi3aM",
-    # "AIzaSyA1wRumYa8eTN2fFdPBKccOdEgeF60sp0k",
-    # # angoc3
-    # "AIzaSyBQ7ShiXEbw4igWkb2LCszgLyVHBCE_cA8",
-    # "AIzaSyCyg04vEpSq8-27eAP4xfp0o-Klo7St8Eg",
-    # "AIzaSyCdaAPr8eczxyvtXh36ZY44yml1jL1WgeI",
-    # "AIzaSyBPt-das-rLPd2plxYxUlOv8Jt70rpCEjg",
-    # "AIzaSyAkjQAECdFWgv0qiyJKwRkjv9edg4ihoig",
-    # vbui1
-    "AIzaSyCNuw2RQhY1G3PvZffZUaX3K72zqfXErcQ",
-    "AIzaSyCsJkH6ceCNHO_YNiw-E2g2A2dhC8bxoxM",
-    "AIzaSyC7ARnHzQX6gzxgQM9P4Lm6edptEgJqEig",
-    "AIzaSyDP7Ue69xCg2sL-CtX6EPdUWr1vX91B170",
-    "AIzaSyAP2CmKevO29RSwK9-RmXU-zRjsMKn0swk",
-    # vbui2
-    "AIzaSyBaaZSEkSo6Hgt_qFUSomOep8GcCM01INk",
-    "AIzaSyC0HR9_n48ZZHf2HCSf2yWCyKCAMbCy5b4",
-    "AIzaSyDETSSd-SqJzPpmU-IUsXP-_u-enrk7JOg",
-    "AIzaSyC-jKDPazrqnit_vTdpWvUNHbvGhAE_KCk",
-    "AIzaSyBSnhEKrqrxucUHFnFkaM0ClrObu0NUr2I",
-    # vbui3
-    "AIzaSyCI8ovOwS6ib8qgZ7KQXzESGU9MzvSoYcY",
-    "AIzaSyD435IkcFF4c4ZAcC0XXfphBeaD_clgap8",
-    "AIzaSyBT5Y4slOMbyLPCo1yY3R2DwzP8_khq-OQ",
-    "AIzaSyCAOgyE8OdjiiIE7PyneYa93VC6YByAGvA",
-    "AIzaSyC0ADQDb8Fq9_q8hMt2CPvV1-4cNb_Jxug",
+    
     
 ]
 
