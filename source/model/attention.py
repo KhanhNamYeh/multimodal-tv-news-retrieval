@@ -55,7 +55,7 @@ class GatedAttention(nn.Module):
         self.w_k = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
         self.w_v = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
         self.w_o = nn.Linear(n_heads * self.head_dim, dim, bias=False)
-        self.gate = nn.Parameter(torch.full((n_heads, self.head_dim), -5.0))
+        self.gate = nn.Parameter(torch.full((n_heads, self.head_dim), -1.0))
         self.rope = RotaryPositionalEmbedding(self.head_dim)
 
     def _shape_q(self, q):
@@ -107,7 +107,7 @@ class GatedAttentionVideoRoPE(nn.Module):
         self.w_k = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
         self.w_v = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
         self.w_o = nn.Linear(n_heads * self.head_dim, dim, bias=False)
-        self.gate = nn.Parameter(torch.full((n_heads, self.head_dim), -5.0))
+        self.gate = nn.Parameter(torch.full((n_heads, self.head_dim), -1.0))
         self.rope = VideoRoPE2D(self.head_dim, base_temporal, base_spatial)
 
         # Visualization hooks (no overhead unless toggled).

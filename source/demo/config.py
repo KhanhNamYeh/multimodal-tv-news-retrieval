@@ -5,19 +5,22 @@ import os
 from pathlib import Path
 
 
-# Project root — must contain ``data/``, ``dataset/``, optionally ``best_model.pth``.
-BASE_DIR = Path(os.environ.get("AIC_BASE_DIR", "D:/aic"))
-
 # Demo folder (this file's directory).
 DEMO_DIR = Path(__file__).resolve().parent
 
 # Source folder.
 SOURCE_DIR = DEMO_DIR.parent
 
-# Default checkpoint = Variant 3 best.
+# Project root — auto-detected from file location (source/demo/config.py → <root>).
+# Override with AIC_BASE_DIR env var if needed.
+_DEFAULT_ROOT = str(SOURCE_DIR.parent)
+BASE_DIR = Path(os.environ.get("AIC_BASE_DIR", _DEFAULT_ROOT))
+
+# Default checkpoint = Variant 3 best (gate_init=-1.0, R@1=73.84).
+# Place pretrain_v3_gate_neg1.pth at the project root (see README).
 CHECKPOINT = Path(os.environ.get(
     "AIC_CHECKPOINT",
-    str(SOURCE_DIR / "ablation_output" / "ablation1_nofilter_videorope_lg_L2.pth"),
+    str(BASE_DIR / "pretrain_v3_gate_neg1.pth"),
 ))
 
 # FAISS index files live alongside the demo so the artefact is self-contained.

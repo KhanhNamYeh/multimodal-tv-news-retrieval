@@ -41,6 +41,31 @@ def _keyframe_video_ids() -> set[str]:
     return {p.name for p in KEYFRAMES_DIR.iterdir() if p.is_dir()}
 
 
+_valid_video_cache: dict[str, bool] = {}
+
+
+def _video_has_valid_features(video_id: str) -> bool:
+    """Check (cached) if a video has non-zero SigLIP2 features.
+
+    Probes the first NPZ in the video dir — if it's zero, all shots are
+    likely zero (feature extraction failed for the whole video).
+    """
+    if video_id in _valid_video_cache:
+        return _valid_video_cache[video_id]
+    vis_dir = BASE_DIR / "data" / "features" / "siglip2" / video_id
+    if not vis_dir.exists():
+        _valid_video_cache[video_id] = False
+        return False
+    try:
+        import numpy as _np
+        npz = next(vis_dir.glob("*.npz"), None)
+        valid = npz is not None and float(_np.load(npz)["features"].max()) > 0
+    except Exception:
+        valid = False
+    _valid_video_cache[video_id] = valid
+    return valid
+
+
 def build_keyframe_loader(split: str, batch_size: int = INDEX_BATCH_SIZE) -> DataLoader:
     dataset = VietnameseNewsDataset(
         split=split,
@@ -50,11 +75,18 @@ def build_keyframe_loader(split: str, batch_size: int = INDEX_BATCH_SIZE) -> Dat
         max_seg_tokens=DATA_CFG["max_seg_tokens"],
         visual_feature_subdir=DATA_CFG["visual_feature_subdir"],
     )
-    keyframe_videos = _keyframe_video_ids()
-    if keyframe_videos:
-        dataset.samples = [s for s in dataset.samples if s.get("video_id") in keyframe_videos]
+    # NOTE: keyframe filter disabled — all K09_* keyframe videos have
+    # zero-filled SigLIP2 features. The validity filter below handles this.
+    # keyframe_videos = _keyframe_video_ids()
+    # if keyframe_videos:
+    #     dataset.samples = [s for s in dataset.samples if s.get("video_id") in keyframe_videos]
+    # Filter out samples with zero/missing visual features (e.g. K09_* not extracted).
+    dataset.samples = [
+        s for s in dataset.samples
+        if _video_has_valid_features(s["video_id"])
+    ]
     if not dataset.samples:
-        raise RuntimeError(f"No samples found for split={split}.")
+        raise RuntimeError(f"No samples with valid visual features for split={split}.")
     return DataLoader(
         dataset, batch_size=batch_size, num_workers=0, shuffle=False, collate_fn=collate_fn,
     )
