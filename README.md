@@ -34,3 +34,8 @@ python source/demo/app.py cpu
 ```
 
 Sau khi khởi động, mở trình duyệt tại địa chỉ Gradio in ra (mặc định `http://127.0.0.1:7860`).
+
+
+## 4. Link data
+
+> **Link Google Drive:** https://drive.google.com/drive/folders/17uPgkzkC6mZ00hBq6KTEAZG2OLlCr41c?usp=sharing
