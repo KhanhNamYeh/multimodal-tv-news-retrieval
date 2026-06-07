@@ -64,6 +64,8 @@ source/benchmark_main_test_results.json
 source/custom_model_results.json
 source/narvid_baseline_results.json
 
+source/preprocess/api_key.txt
+
 # Old root-level checkpoint (not the demo's)
 /best_model.pth
 

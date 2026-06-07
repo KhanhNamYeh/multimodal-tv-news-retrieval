@@ -16,7 +16,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .blocks import FusionBlock, FusionBlockLocalGlobal, FusionBlockVideoRoPE
+from .blocks import (
+    FusionBlock,
+    FusionBlockLocalGlobal,
+    FusionBlockVideoRoPE,
+    FusionBlockVideoRoPEWideCA,
+)
 from .components import RMSNorm
 
 
@@ -123,7 +128,83 @@ class FusionEncoder(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# 2) NoFilter + VideoRoPE 2D, full CA (Variant 1/2 of ablation_study_1).
+# 2) NoFilter + 1D RoPE, full CA (Ablation: isolate rope impact).
+# ---------------------------------------------------------------------------
+
+class FusionEncoderNoFilter1DRoPE(nn.Module):
+    """NoFilter + 1D RoPE + full cross-attention (for ablation: rope-only comparison)."""
+
+    def __init__(self, dim: int = 1024, vis_dim: int = 1152, n_layers: int = 2,
+                 n_heads: int = 16, n_kv_heads: int = 4, delta: float = 100.0):
+        super().__init__()
+        self.dim = dim
+        self.delta = delta
+        self.visual_proj = nn.Linear(vis_dim, dim, bias=False)
+        self.blocks = nn.ModuleList([
+            FusionBlock(dim, n_heads, n_kv_heads, 8.0 / 3.0)
+            for _ in range(n_layers)
+        ])
+        self.final_norm = RMSNorm(dim)
+        self.temperature = nn.Parameter(torch.log(torch.tensor(1.0 / 0.07)))
+
+    @staticmethod
+    def _masked_mean(x, mask, dim):
+        m = mask.unsqueeze(-1).to(x.dtype)
+        num = (x * m).sum(dim=dim)
+        den = m.sum(dim=dim).clamp_min(1e-6)
+        return num / den
+
+    def _build_positions(self, seg_ts, frame_ts, t_tokens, n_regions):
+        intra = torch.arange(t_tokens, device=seg_ts.device, dtype=seg_ts.dtype)
+        seg_pos = seg_ts.unsqueeze(-1) * self.delta + intra.unsqueeze(0).unsqueeze(0)
+        spatial = torch.arange(n_regions, device=frame_ts.device, dtype=frame_ts.dtype)
+        frame_pos = frame_ts.unsqueeze(-1) * self.delta + spatial.unsqueeze(0).unsqueeze(0)
+        return seg_pos, frame_pos
+
+    def forward(self, seg_tokens, seg_pooled, visual_features,
+                seg_timestamps, frame_timestamps,
+                seg_mask, visual_mask,
+                query_emb: Optional[torch.Tensor] = None,
+                token_mask: Optional[torch.Tensor] = None):
+        b, m, t, d = seg_tokens.shape
+        _, n, r, _ = visual_features.shape
+
+        e_narr = self._masked_mean(seg_pooled, seg_mask, dim=1)
+        e_narr = F.normalize(e_narr, p=2, dim=-1)
+
+        vis = self.visual_proj(visual_features)
+        seg_pos, frame_pos = self._build_positions(seg_timestamps, frame_timestamps, t, r)
+
+        seg_flat = seg_tokens.reshape(b, m * t, d)
+        vis_flat = vis.reshape(b, n * r, d)
+        seg_pos_flat = seg_pos.reshape(b, m * t)
+        frame_pos_flat = frame_pos.reshape(b, n * r)
+
+        if token_mask is None:
+            seg_token_mask = seg_mask.unsqueeze(-1).expand(b, m, t).reshape(b, m * t)
+        else:
+            seg_token_mask = token_mask.reshape(b, m * t)
+        visual_region_mask = visual_mask.unsqueeze(-1).expand(b, n, r).reshape(b, n * r)
+
+        for block in self.blocks:
+            seg_flat = block(seg_flat, vis_flat, seg_pos_flat, frame_pos_flat,
+                           seg_token_mask, visual_region_mask)
+
+        seg_flat = self.final_norm(seg_flat)
+        seg_tokens_out = seg_flat.reshape(b, m, t, d)
+        seg_token_mask_4d = seg_token_mask.reshape(b, m, t)
+        seg_repr = self._masked_mean(seg_tokens_out, seg_token_mask_4d, dim=2)
+
+        valid = seg_mask > 0
+        weights = valid.float()
+        weights = weights / weights.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        e_plus = torch.sum(seg_repr * weights.unsqueeze(-1), dim=1)
+        e_plus = F.normalize(e_plus, p=2, dim=-1)
+        return e_plus, e_narr, self.temperature
+
+
+# ---------------------------------------------------------------------------
+# 3) NoFilter + VideoRoPE 2D, full CA (Variant 1/2 of ablation_study_1).
 # ---------------------------------------------------------------------------
 
 class FusionEncoderNoFilterVideoRoPE(nn.Module):
@@ -131,13 +212,15 @@ class FusionEncoderNoFilterVideoRoPE(nn.Module):
 
     def __init__(self, dim: int = 1024, vis_dim: int = 1152, n_layers: int = 2,
                  n_heads: int = 16, n_kv_heads: int = 4, delta: float = 100.0,
-                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0):
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True):
         super().__init__()
         self.dim = dim
         self.delta = delta
         self.visual_proj = nn.Linear(vis_dim, dim, bias=False)
         self.blocks = nn.ModuleList([
-            FusionBlockVideoRoPE(dim, n_heads, n_kv_heads, 8.0 / 3.0, base_temporal, base_spatial)
+            FusionBlockVideoRoPE(dim, n_heads, n_kv_heads, 8.0 / 3.0,
+                                 base_temporal, base_spatial, use_gate=use_gate)
             for _ in range(n_layers)
         ])
         self.final_norm = RMSNorm(dim)
@@ -217,6 +300,36 @@ class FusionEncoderNoFilterVideoRoPE(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# 2b) No-LG ablation: single plain CA but widened to match LG's param count.
+# ---------------------------------------------------------------------------
+
+class FusionEncoderNoFilterVideoRoPEWideCA(FusionEncoderNoFilterVideoRoPE):
+    """NoFilter + VideoRoPE 2D + 1 plain full CA with ``ca_width_mult x`` width.
+
+    Param-matched No-LG baseline: keeps L=2 and the plain single-CA structure
+    (no window mask, no zero-temporal trick), but widens the cross-attention's
+    internal dim so the attention parameter count approximates the Full LG.
+    """
+
+    def __init__(self, dim: int = 1024, vis_dim: int = 1152, n_layers: int = 2,
+                 n_heads: int = 16, n_kv_heads: int = 4, delta: float = 100.0,
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True, ca_width_mult: int = 2):
+        nn.Module.__init__(self)
+        self.dim = dim
+        self.delta = delta
+        self.visual_proj = nn.Linear(vis_dim, dim, bias=False)
+        self.blocks = nn.ModuleList([
+            FusionBlockVideoRoPEWideCA(dim, n_heads, n_kv_heads, 8.0 / 3.0,
+                                       base_temporal, base_spatial,
+                                       use_gate=use_gate, ca_width_mult=ca_width_mult)
+            for _ in range(n_layers)
+        ])
+        self.final_norm = RMSNorm(dim)
+        self.temperature = nn.Parameter(torch.log(torch.tensor(1.0 / 0.07)))
+
+
+# ---------------------------------------------------------------------------
 # 3) Variant 3 (MAIN): NoFilter + VideoRoPE 2D + Local-Global CA.
 # ---------------------------------------------------------------------------
 
@@ -226,7 +339,8 @@ class FusionEncoderNoFilterVideoRoPELG(FusionEncoderNoFilterVideoRoPE):
     def __init__(self, dim: int = 1024, vis_dim: int = 1152, n_layers: int = 2,
                  n_heads: int = 16, n_kv_heads: int = 4, delta: float = 100.0,
                  base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
-                 window_seconds: float = 8.0, n_global_tokens: int = 16):
+                 window_seconds: float = 8.0, n_global_tokens: int = 16,
+                 use_gate: bool = True):
         nn.Module.__init__(self)
         self.dim = dim
         self.delta = delta
@@ -234,7 +348,8 @@ class FusionEncoderNoFilterVideoRoPELG(FusionEncoderNoFilterVideoRoPE):
         self.n_global_tokens = n_global_tokens
         self.visual_proj = nn.Linear(vis_dim, dim, bias=False)
         self.blocks = nn.ModuleList([
-            FusionBlockLocalGlobal(dim, n_heads, n_kv_heads, 8.0 / 3.0, base_temporal, base_spatial)
+            FusionBlockLocalGlobal(dim, n_heads, n_kv_heads, 8.0 / 3.0,
+                                   base_temporal, base_spatial, use_gate=use_gate)
             for _ in range(n_layers)
         ])
         self.final_norm = RMSNorm(dim)
@@ -333,9 +448,12 @@ class FusionConfig:
     Toggles map to architectural choices in the ablation study:
 
     - ``rope``        : ``"videorope2d"`` (Variant 3, default) or ``"rope1d"`` (legacy).
-    - ``cross_attn``  : ``"local_global"`` (Variant 3, default) or ``"full"``.
+    - ``cross_attn``  : ``"local_global"`` (Variant 3, default), ``"dual_full"``
+                        (param-matched No-LG ablation) or ``"full"`` (single CA).
     - ``use_filter``  : ``False`` (NoFilter, Variant 3) or ``True`` (legacy adaptive filter).
                        Only meaningful with ``rope=rope1d`` + ``cross_attn=full``.
+    - ``use_gate``    : ``True`` (sigmoid Per-Head Gate, default) or ``False``
+                       to ablate the gate while keeping params identical.
     """
     dim: int = 1024
     vis_dim: int = 1152
@@ -344,8 +462,9 @@ class FusionConfig:
     n_kv_heads: int = 4
     delta: float = 100.0
     rope: str = "videorope2d"            # "videorope2d" | "rope1d"
-    cross_attn: str = "local_global"     # "local_global" | "full"
+    cross_attn: str = "local_global"     # "local_global" | "dual_full" | "full"
     use_filter: bool = False             # only meaningful when rope=rope1d & cross_attn=full
+    use_gate: bool = True
     base_temporal: float = 500_000.0
     base_spatial: float = 10_000.0
     lg_window_seconds: float = 8.0
@@ -371,11 +490,13 @@ def build_fusion_encoder(cfg: "FusionConfig | dict") -> nn.Module:
             base_temporal=cfg.base_temporal, base_spatial=cfg.base_spatial,
             window_seconds=cfg.lg_window_seconds,
             n_global_tokens=cfg.lg_n_global_tokens,
+            use_gate=cfg.use_gate,
         )
     if cfg.rope == "videorope2d" and cfg.cross_attn == "full":
         return FusionEncoderNoFilterVideoRoPE(
             **common,
             base_temporal=cfg.base_temporal, base_spatial=cfg.base_spatial,
+            use_gate=cfg.use_gate,
         )
     if cfg.rope == "rope1d" and cfg.cross_attn == "full":
         return FusionEncoder(**common)

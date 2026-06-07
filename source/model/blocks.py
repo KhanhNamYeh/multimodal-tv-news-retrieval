@@ -44,14 +44,60 @@ class FusionBlockVideoRoPE(nn.Module):
 
     def __init__(self, dim: int = 1024, n_heads: int = 16, n_kv_heads: int = 4,
                  ffn_mult: float = 8.0 / 3.0,
-                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0):
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True):
         super().__init__()
         self.norm1 = RMSNorm(dim)
-        self.self_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial)
+        self.self_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate)
         self.norm2 = RMSNorm(dim)
         self.ffn1 = SwiGLUFFN(dim, ffn_mult)
         self.norm3 = RMSNorm(dim)
-        self.cross_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial)
+        self.cross_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate)
+        self.norm4 = RMSNorm(dim)
+        self.ffn2 = SwiGLUFFN(dim, ffn_mult)
+
+    def forward(self, seg_tokens, visual_regions,
+                seg_t, seg_r, seg_c, vis_t, vis_r, vis_c,
+                seg_mask, visual_mask):
+        y = seg_tokens + self.self_attn(
+            self.norm1(seg_tokens), self.norm1(seg_tokens),
+            seg_t, seg_r, seg_c, seg_t, seg_r, seg_c, mask=seg_mask,
+        )
+        y = y + self.ffn1(self.norm2(y))
+        z = y + self.cross_attn(
+            self.norm3(y), visual_regions,
+            seg_t, seg_r, seg_c, vis_t, vis_r, vis_c, mask=visual_mask,
+        )
+        z = z + self.ffn2(self.norm4(z))
+        return z
+
+
+class FusionBlockVideoRoPEWideCA(nn.Module):
+    """VideoRoPE 2D, single full CA with widened internal dim.
+
+    Used as the param-matched No-LG baseline: 1 plain full CA (no window mask,
+    no zero-temporal trick) but with ``ca_width_mult x`` internal width so the
+    attention parameter count approximates the LG block (which has 2 CA).
+    """
+
+    def __init__(self, dim: int = 1024, n_heads: int = 16, n_kv_heads: int = 4,
+                 ffn_mult: float = 8.0 / 3.0,
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True, ca_width_mult: int = 2):
+        super().__init__()
+        self.norm1 = RMSNorm(dim)
+        self.self_attn = GatedAttentionVideoRoPE(
+            dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate,
+        )
+        self.norm2 = RMSNorm(dim)
+        self.ffn1 = SwiGLUFFN(dim, ffn_mult)
+        self.norm3 = RMSNorm(dim)
+        self.cross_attn = GatedAttentionVideoRoPE(
+            dim,
+            n_heads * ca_width_mult, n_kv_heads * ca_width_mult,
+            base_temporal, base_spatial, use_gate=use_gate,
+            dim_inner=dim * ca_width_mult,
+        )
         self.norm4 = RMSNorm(dim)
         self.ffn2 = SwiGLUFFN(dim, ffn_mult)
 
@@ -76,15 +122,16 @@ class FusionBlockLocalGlobal(nn.Module):
 
     def __init__(self, dim: int = 1024, n_heads: int = 16, n_kv_heads: int = 4,
                  ffn_mult: float = 8.0 / 3.0,
-                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0):
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True):
         super().__init__()
         self.norm1 = RMSNorm(dim)
-        self.self_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial)
+        self.self_attn = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate)
         self.norm2 = RMSNorm(dim)
         self.ffn1 = SwiGLUFFN(dim, ffn_mult)
         self.norm3 = RMSNorm(dim)
-        self.local_ca = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial)
-        self.global_ca = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial)
+        self.local_ca = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate)
+        self.global_ca = GatedAttentionVideoRoPE(dim, n_heads, n_kv_heads, base_temporal, base_spatial, use_gate=use_gate)
         self.norm4 = RMSNorm(dim)
         self.ffn2 = SwiGLUFFN(dim, ffn_mult)
 

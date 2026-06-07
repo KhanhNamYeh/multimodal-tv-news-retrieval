@@ -93,16 +93,31 @@ class GatedAttention(nn.Module):
 
 
 class GatedAttentionVideoRoPE(nn.Module):
-    """GQA + sigmoid gate, VideoRoPE 2D."""
+    """GQA + sigmoid gate, VideoRoPE 2D.
+
+    ``use_gate=False`` ablates the sigmoid Per-Head Gate by forcing the
+    multiplicative gate to a constant 1.0. The ``gate`` parameter is still
+    allocated to keep parameter counts identical between gated and ungated
+    runs — only the forward pass skips the sigmoid.
+    """
 
     def __init__(self, dim: int = 1024, n_heads: int = 16, n_kv_heads: int = 4,
-                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0):
+                 base_temporal: float = 500_000.0, base_spatial: float = 10_000.0,
+                 use_gate: bool = True, dim_inner: Optional[int] = None):
         super().__init__()
+        if dim_inner is None:
+            dim_inner = dim
+        if dim_inner % n_heads != 0:
+            raise ValueError("dim_inner must be divisible by n_heads")
+        if n_heads % n_kv_heads != 0:
+            raise ValueError("n_heads must be divisible by n_kv_heads")
         self.dim = dim
+        self.dim_inner = dim_inner
         self.n_heads = n_heads
         self.n_kv_heads = n_kv_heads
-        self.head_dim = dim // n_heads
+        self.head_dim = dim_inner // n_heads
         self.kv_repeat = n_heads // n_kv_heads
+        self.use_gate = use_gate
         self.w_q = nn.Linear(dim, n_heads * self.head_dim, bias=False)
         self.w_k = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
         self.w_v = nn.Linear(dim, n_kv_heads * self.head_dim, bias=False)
@@ -137,7 +152,8 @@ class GatedAttentionVideoRoPE(nn.Module):
         if self._capture_attn:
             self._last_attn = p.detach()
         o = torch.matmul(p, v)
-        g = torch.sigmoid(self.gate).unsqueeze(0).unsqueeze(2)
-        o = o * g
-        o = o.transpose(1, 2).contiguous().view(x_q.shape[0], x_q.shape[1], self.dim)
+        if self.use_gate:
+            g = torch.sigmoid(self.gate).unsqueeze(0).unsqueeze(2)
+            o = o * g
+        o = o.transpose(1, 2).contiguous().view(x_q.shape[0], x_q.shape[1], self.n_heads * self.head_dim)
         return self.w_o(o)

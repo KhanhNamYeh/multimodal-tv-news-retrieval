@@ -6,7 +6,12 @@ Notebooks doing ``import model`` or ``from model import X`` keep working via
 this re-export.
 """
 from .attention import GatedAttention, GatedAttentionVideoRoPE
-from .blocks import FusionBlock, FusionBlockLocalGlobal, FusionBlockVideoRoPE
+from .blocks import (
+    FusionBlock,
+    FusionBlockLocalGlobal,
+    FusionBlockVideoRoPE,
+    FusionBlockVideoRoPEWideCA,
+)
 from .components import (
     RMSNorm,
     RotaryPositionalEmbedding,
@@ -18,6 +23,7 @@ from .fusion_encoder import (
     FusionConfig,
     FusionEncoder,
     FusionEncoderNoFilterVideoRoPE,
+    FusionEncoderNoFilterVideoRoPEWideCA,
     FusionEncoderNoFilterVideoRoPELG,
     build_fusion_encoder,
 )
@@ -25,7 +31,10 @@ from .fusion_encoder import (
 __all__ = [
     "RMSNorm", "SwiGLUFFN", "RotaryPositionalEmbedding", "VideoRoPE2D",
     "GatedAttention", "GatedAttentionVideoRoPE",
-    "FusionBlock", "FusionBlockVideoRoPE", "FusionBlockLocalGlobal",
-    "FusionEncoder", "FusionEncoderNoFilterVideoRoPE", "FusionEncoderNoFilterVideoRoPELG",
+    "FusionBlock", "FusionBlockVideoRoPE", "FusionBlockVideoRoPEWideCA",
+    "FusionBlockLocalGlobal",
+    "FusionEncoder", "FusionEncoderNoFilterVideoRoPE",
+    "FusionEncoderNoFilterVideoRoPEWideCA",
+    "FusionEncoderNoFilterVideoRoPELG",
     "FusionConfig", "build_fusion_encoder", "VARIANT3_DEFAULT",
 ]

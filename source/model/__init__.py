@@ -6,7 +6,12 @@ The main model is **Variant 3** = ``FusionEncoderNoFilterVideoRoPELG``
 For ablation studies use ``build_fusion_encoder(FusionConfig(...))``.
 """
 from .attention import GatedAttention, GatedAttentionVideoRoPE
-from .blocks import FusionBlock, FusionBlockLocalGlobal, FusionBlockVideoRoPE
+from .blocks import (
+    FusionBlock,
+    FusionBlockLocalGlobal,
+    FusionBlockVideoRoPE,
+    FusionBlockVideoRoPEWideCA,
+)
 from .components import (
     RMSNorm,
     RotaryPositionalEmbedding,
@@ -17,7 +22,9 @@ from .fusion_encoder import (
     VARIANT3_DEFAULT,
     FusionConfig,
     FusionEncoder,
+    FusionEncoderNoFilter1DRoPE,
     FusionEncoderNoFilterVideoRoPE,
+    FusionEncoderNoFilterVideoRoPEWideCA,
     FusionEncoderNoFilterVideoRoPELG,
     build_fusion_encoder,
 )
@@ -25,7 +32,10 @@ from .fusion_encoder import (
 __all__ = [
     "RMSNorm", "SwiGLUFFN", "RotaryPositionalEmbedding", "VideoRoPE2D",
     "GatedAttention", "GatedAttentionVideoRoPE",
-    "FusionBlock", "FusionBlockVideoRoPE", "FusionBlockLocalGlobal",
-    "FusionEncoder", "FusionEncoderNoFilterVideoRoPE", "FusionEncoderNoFilterVideoRoPELG",
+    "FusionBlock", "FusionBlockVideoRoPE", "FusionBlockVideoRoPEWideCA",
+    "FusionBlockLocalGlobal",
+    "FusionEncoder", "FusionEncoderNoFilter1DRoPE", "FusionEncoderNoFilterVideoRoPE",
+    "FusionEncoderNoFilterVideoRoPEWideCA",
+    "FusionEncoderNoFilterVideoRoPELG",
     "FusionConfig", "build_fusion_encoder", "VARIANT3_DEFAULT",
 ]
